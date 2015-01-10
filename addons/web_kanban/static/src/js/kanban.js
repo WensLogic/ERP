@@ -324,6 +324,9 @@ instance.web_kanban.KanbanView = instance.web.View.extend({
                 var def = $.when([]);
                 var dataset = new instance.web.DataSetSearch(self, self.dataset.model,
                     new instance.web.CompoundContext(self.dataset.get_context(), group.model.context()), group.model.domain());
+                if (self.dataset._sort) {
+                    dataset.set_sort(self.dataset._sort);
+                }
                 if (group.attributes.length >= 1) {
                     def = dataset.read_slice(self.fields_keys.concat(['__last_update']), { 'limit': self.limit });
                 }
@@ -1419,5 +1422,3 @@ instance.web_kanban.fields_registry = new instance.web.Registry({});
 instance.web_kanban.fields_registry.add('priority','instance.web_kanban.Priority');
 instance.web_kanban.fields_registry.add('kanban_state_selection','instance.web_kanban.KanbanSelection');
 };
-
-// vim:et fdc=0 fdl=0 foldnestmax=3 fdm=syntax:

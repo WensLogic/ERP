@@ -33,7 +33,7 @@ class MailMessage(osv.Model):
             if message.subject:
                 res[message.id] = message.subject
             else:
-                plaintext_ct = html2plaintext(message.body)
+                plaintext_ct = '' if not message.body else html2plaintext(message.body)
                 res[message.id] = plaintext_ct[:30] + '%s' % (' [...]' if len(plaintext_ct) >= 30 else '')
         return res
 
@@ -87,3 +87,4 @@ class MailMessage(osv.Model):
                         _('Access Denied'),
                         _('The requested operation cannot be completed due to security restrictions. Please contact your system administrator.\n\n(Document type: %s, Operation: %s)') % (self._description, operation))
         return super(MailMessage, self).check_access_rule(cr, uid, ids=ids, operation=operation, context=context)
+

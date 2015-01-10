@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- vim:fdl=1:
--->
 <templates id="template" xml:space="preserve">
 <t t-name="EmptyComponent">
     <div></div>
@@ -84,7 +82,7 @@
                 </p>
                 <p class="oe_grey" style="margin: 10px">
                     By default, the master password is 'admin'. This password
-                    is required to created, delete dump or restore databases.
+                    is required to create, delete, dump or restore databases.
                 </p>
                 <table class="db_option_table" style="margin: 10px">
                     <tr>
@@ -497,7 +495,7 @@
                     <t t-if="widget.multiple_views">
                         <div class="oe-view-manager-switch btn-group btn-group-sm">
                             <t t-foreach="widget.view_order" t-as="view">
-                                <button type="button" t-attf-class="btn btn-default fa oe-vm-switch-#{view.type}" t-att-data-view-type="view.type" t-att-title="view.label" t-if="view.type!=='form'">
+                                <button type="button" t-attf-class="btn btn-default fa oe-vm-switch-#{view.type}" t-att-data-view-type="view.type" t-att-title="view.label">
                                 </button>
                             </t>
                         </div>

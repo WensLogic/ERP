@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- vim:fdn=3:
--->
 <openerp>
     <data>
         <template id="web.assets_common">
@@ -142,7 +140,7 @@
         </template>
 
         <template id="web.menu">
-            <ul class="nav navbar-nav navbar-left oe_application_menu_placeholder">
+            <ul class="nav navbar-nav navbar-left oe_application_menu_placeholder" style="display: none;">
                 <li t-foreach="menu_data['children']" t-as="menu">
                     <t t-call="web.menu_link"/>
                 </li>
@@ -173,7 +171,7 @@
                 </t>
             </div>
             <div class="oe_footer">
-                Powered by <a href="http://www.openerp.com" target="_blank"><span>Odoo</span></a>
+                Powered by <a href="http://www.odoo.com" target="_blank"><span>Odoo</span></a>
             </div>
         </template>
         <template id="web.menu_secondary_submenu">
