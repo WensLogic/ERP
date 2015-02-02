@@ -472,9 +472,6 @@ instance.web.ListView = instance.web.View.extend( /** @lends instance.web.ListVi
     },
     do_show: function () {
         this._super();
-        if (this.$buttons) {
-            this.$buttons.show();
-        }
         if (this.$pager) {
             this.$pager.show();
         }
@@ -482,9 +479,6 @@ instance.web.ListView = instance.web.View.extend( /** @lends instance.web.ListVi
     do_hide: function () {
         if (this.sidebar) {
             this.sidebar.$el.hide();
-        }
-        if (this.$buttons) {
-            this.$buttons.hide();
         }
         if (this.$pager) {
             this.$pager.hide();
@@ -2160,6 +2154,7 @@ instance.web.list.columns = new instance.web.Registry({
     'field.many2onebutton': 'instance.web.list.Many2OneButton',
     'field.reference': 'instance.web.list.Reference',
     'field.many2many': 'instance.web.list.Many2Many',
+    'field.url': 'instance.web.list.Url',
     'button.toggle_button': 'instance.web.list.toggle_button',
 });
 instance.web.list.columns.for_ = function (id, field, node) {
@@ -2363,7 +2358,7 @@ instance.web.list.Handle = instance.web.list.Column.extend({
      * @private
      */
     _format: function (row_data, options) {
-        return '<div class="oe_list_handle">';
+        return '<i class="oe_list_handle fa fa-circle"/>';
     }
 });
 instance.web.list.Many2OneButton = instance.web.list.Column.extend({
@@ -2395,6 +2390,32 @@ instance.web.list.Reference = instance.web.list.Column.extend({
             } else {
                 row_data[this.id] = {'value': ''};
             }
+        }
+        return this._super(row_data, options);
+    }
+});
+instance.web.list.Url = instance.web.list.Column.extend({
+    /**
+     * Regex checking if a URL has a scheme
+     */
+    PROTOCOL_REGEX: /^(?!\w+:?\/\/)/,
+
+    /**
+     * Format a column as a URL if the column has content.
+     * Add "//" (inherit current protocol) specified in
+     * RFC 1808, 2396, and 3986 if no other protocol is included.
+     *
+     * @param row_data record whose values should be displayed in the cell
+     * @param options
+     */
+    _format: function(row_data, options) {
+        var value = row_data[this.id].value;
+
+        if (value) {
+            return _.template("<a href='<%-href%>' target='_blank'><%-text%></a>", {
+                href: value.trim().replace(this.PROTOCOL_REGEX, '//'),
+                text: value
+            });
         }
         return this._super(row_data, options);
     }

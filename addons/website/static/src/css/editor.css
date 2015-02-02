@@ -68,10 +68,22 @@
   display: none;
 }
 
-.o_editable[data-oe-model][data-oe-type]:hover {
-  -moz-box-shadow: 0 0 10px 3px rgba(94, 255, 0, 0.8);
-  -webkit-box-shadow: 0 0 10px 3px rgba(94, 255, 0, 0.8);
-  box-shadow: 0 0 10px 3px rgba(94, 255, 0, 0.8);
+.o_editable:not(:empty):not([data-oe-model="ir.ui.view"]):not([data-oe-type="html"]):hover, .o_editable[data-oe-type]:not([data-oe-model="ir.ui.view"]):not([data-oe-type="html"]):hover {
+  /* to do change into primary color in less */
+  -moz-box-shadow: #3071a9 0 0 5px 2px inset;
+  -webkit-box-shadow: #3071a9 0 0 5px 2px inset;
+  box-shadow: #3071a9 0 0 5px 2px inset;
+}
+.o_editable:focus, .o_editable[data-oe-type] {
+  min-height: 0.8em;
+  min-width: 8px;
+}
+.o_editable.o_is_inline_editable {
+  display: inline-block;
+}
+
+.editor_enable [data-oe-readonly]:hover {
+  cursor: default;
 }
 
 /* Prevent the text contents of draggable elements from being selectable. */
@@ -155,7 +167,7 @@
   display: none;
 }
 
-.o_editable .css_non_editable_mode_hidden {
+.editor_enable .css_non_editable_mode_hidden {
   display: block !important;
 }
 
@@ -357,14 +369,7 @@ ul.oe_menu_editor .disclose {
 .modal #icon-search {
   padding-left: 2.5em;
 }
-.modal #fa-preview {
-  text-align: center;
-}
-.modal #fa-preview span {
-  cursor: pointer;
-  padding: 0 15px;
-}
-.modal #fa-preview .font-icons-selected {
+.modal .font-icons-selected {
   background-color: #ddd;
 }
 

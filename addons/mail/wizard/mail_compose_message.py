@@ -227,6 +227,10 @@ class mail_compose_message(osv.TransientModel):
     #------------------------------------------------------
     # Wizard validation and send
     #------------------------------------------------------
+    # action buttons call with positionnal arguments only, so we need an intermediary function
+    # to ensure the context is passed correctly
+    def send_mail_action(self, cr, uid, ids, context=None):
+        self.send_mail(cr, uid, ids, context=context)
 
     def send_mail(self, cr, uid, ids, auto_commit=False, context=None):
         """ Process the wizard content and proceed with sending the related
@@ -282,7 +286,7 @@ class mail_compose_message(osv.TransientModel):
                         batch_mail_mail_ids.append(mail_mail_id)
                     else:
                         subtype = 'mail.mt_comment'
-                        if context.get('mail_compose_log') or (wizard.composition_mode == 'mass_post' and not wizard.notify):  # log a note: subtype is False
+                        if wizard.is_log or (wizard.composition_mode == 'mass_post' and not wizard.notify):  # log a note: subtype is False
                             subtype = False
                         if wizard.composition_mode == 'mass_post':
                             context = dict(context,

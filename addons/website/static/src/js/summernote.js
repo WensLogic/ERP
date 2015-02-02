@@ -344,7 +344,7 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
                 temp.tagName === node.tagName &&
                 !dom.isText(node) &&
                 dom.isMergable(node) &&
-                !dom.isNotBreakable(node) && !dom.isNotBreakable(dom.nextElementSibling(node))) {
+                !dom.isNotBreakable(node) && !dom.isNotBreakable(previous ? dom.previousElementSibling(node) : dom.nextElementSibling(node))) {
 
                 if (previous) {
                     dom.doMerge(temp, node);
@@ -492,18 +492,20 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
         range.create(data.sc, data.so, data.ec, data.eo).select();
     };
     dom.removeBetween = function (sc, so, ec, eo, towrite) {
-        if (ec.tagName && ec.childNodes[eo]) {
-            ec = ec.childNodes[eo];
-            eo = 0;
+        if (ec.tagName) {
+            if (ec.childNodes[eo]) {
+                ec = ec.childNodes[eo];
+                eo = 0;
+            } else {
+                ec = dom.lastChild(ec);
+                eo = dom.nodeLength(ec);
+            }
         }
-        if (sc.tagName && sc.childNodes[so]) {
-            sc = sc.childNodes[so];
+        if (sc.tagName) {
+            sc = sc.childNodes[so] || dom.firstChild(ec);
             so = 0;
             if (!dom.hasContentBefore(sc)) {
                 sc.parentNode.insertBefore(document.createTextNode('\u00A0'), sc);
-                if (sc === ec) {
-                    eo++;
-                }
             }
         }
         if (!eo && sc !== ec) {
@@ -530,12 +532,10 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
 
 
             var node = dom.node(sc);
-            var before = sc;
-            if (so) {
-                dom.splitTree(ancestor_sc, {'node': sc, 'offset': so});
-            } else {
-                before = dom.hasContentBefore(dom.ancestorHavePreviousSibling(sc));
+            if (!dom.isNotBreakable(node)) {
+                sc = dom.splitTree(ancestor_sc, {'node': sc, 'offset': so});
             }
+            var before = dom.hasContentBefore(dom.ancestorHavePreviousSibling(sc));
 
             var after;
             if (ec.textContent.slice(eo, Infinity).match(/\S|\u00A0/)) {
@@ -564,7 +564,7 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
                 so -= sc.textContent.length - text.length;
                 sc.textContent = text;
             }
-            if (towrite && !node.firstChild) {
+            if (towrite && !node.firstChild && node.parentNode && !dom.isNotBreakable(node)) {
                 var br = $("<br/>")[0];
                 node.appendChild(br);
                 sc = br;
@@ -582,8 +582,9 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
         eo = so;
         if(!dom.isBR(sc) && !sc.textContent.match(/\S|\u00A0/)) {
             ancestor = dom.node(sc);
-            sc = document.createTextNode('\u00A0');
-            $(ancestor).prepend(sc);
+            var text = document.createTextNode('\u00A0');
+            $(sc).before(text);
+            sc = text;
             so = 0;
             eo = 1;
         }
@@ -692,19 +693,19 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
     };
     dom.isNotBreakable = function (node, sc, so, ec, eo) {
         // avoid triple click => crappy dom
-        return false; node === ec && !dom.isText(ec) && !dom.isBR(dom.firstChild(ec));
+        return node === ec && !dom.isText(ec) && !dom.isBR(dom.firstChild(ec));
     };
 
     dom.isContentEditable = function (node) {
         return $(node).closest('[contenteditable]').is('[contenteditable="true"]');
     };
 
-
     dom.isFont = function (node) {
         var nodeName = node && node.nodeName.toUpperCase();
         return node && (nodeName === "FONT" ||
-            (nodeName === "SPAN" &&
-                (node.className.match(/(^|\s)(text|bg)-/i) ||
+            (nodeName === "SPAN" && (
+                node.className.match(/(^|\s)fa(\s|$)/i) ||
+                node.className.match(/(^|\s)(text|bg)-/i) ||
                 (node.attributes.style && node.attributes.style.value.match(/(^|\s)(color|background-color):/i)))) );
     };
     dom.isVisibleText = function (textNode) {
@@ -819,7 +820,7 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
 
         // if same node, keep range
         if (start === end || !start) {
-            return range.create(sc, so, ec, eo);
+            return this;
         }
 
         // reduce or extend the range to don't break a isNotBreakable area
@@ -851,6 +852,7 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
     range.WrappedRange.prototype.deleteContents = function (towrite) {
         var prevBP = dom.removeBetween(this.sc, this.so, this.ec, this.eo, towrite);
 
+        $(dom.node(prevBP.sc)).trigger("click"); // trigger click to disable and reanable editor and image handler
         return new range.WrappedRange(
           prevBP.sc,
           prevBP.so,
@@ -1028,7 +1030,7 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
         }
 
         if (last === node && !dom.isBR(node)) {
-            node = r.insertNode(br);
+            node = r.insertNode(br, true);
             do {
                 node = dom.hasContentAfter(node);
             } while (node && dom.isBR(node));
@@ -1209,10 +1211,10 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
                 event.preventDefault();
                 return false;
             }
-            var before = true;
+            var before = false;
             var next = dom.hasContentAfter(dom.ancestorHaveNextSibling(node));
             if (!dom.isContentEditable(next)) {
-                before = false;
+                before = true;
                 next = dom.hasContentBefore(dom.ancestorHavePreviousSibling(node));
             }
             dom.removeSpace(next.parentNode, next, 0, next, 0); // clean before jump for not select invisible space between 2 tag
@@ -1225,7 +1227,7 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
             return true;
         }
         // merge with the next text node
-        else if (dom.isText(target) && (temp = dom.hasContentAfter(target)) && (dom.isText(temp) || dom.isBR(temp))) {
+        else if (dom.isText(target) && (temp = dom.hasContentAfter(target)) && dom.isText(temp)) {
             return true;
         }
         //merge with the next block
@@ -1261,9 +1263,9 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
                     $.summernote.pluginEvents.delete(event, editor, layoutInfo);
                 }
             }
-            event.preventDefault();
-            return false;
         }
+
+        $(dom.node(r.sc)).trigger("click"); // trigger click to disable and reanable editor and image handler
         event.preventDefault();
         return false;
     };
@@ -1398,6 +1400,7 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
 
         var rng = range.create();
         if (rng) {
+            $(dom.node(rng.sc)).trigger("click"); // trigger click to disable and reanable editor and image handler
             dom.scrollIntoViewIfNeeded(rng.sc.parentNode.previousElementSibling || rng.sc);
         }
 
@@ -1828,10 +1831,10 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
               }
 
               if (color.indexOf('text-') !== -1) {
-                font.className = className + " " + color;
+                font.className = className.join(" ") + " " + color;
                 font.style.color = "inherit";
               } else {
-                font.className = className;
+                font.className = className.join(" ");
                 font.style.color = color;
               }
             }
@@ -1844,10 +1847,10 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
               }
 
               if (bgcolor.indexOf('bg-') !== -1) {
-                font.className = className + " " + bgcolor;
+                font.className = className.join(" ") + " " + bgcolor;
                 font.style.backgroundColor = "inherit";
               } else {
-                font.className = className;
+                font.className = className.join(" ");
                 font.style.backgroundColor = bgcolor;
               }
             }
@@ -1907,7 +1910,7 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
         for (var i=0; i<nodes.length; i++) {
           node = nodes[i];
 
-          if (!dom.isVisibleText(node)) {
+          if ((dom.isText(node) || dom.isBR(node)) && !dom.isVisibleText(node)) {
             remove(node);
             nodes.splice(i,1);
             i--;
@@ -2132,17 +2135,18 @@ define(['summernote/editing/Editor', 'summernote/summernote'], function (Editor)
         $editable = $editable.is('[contenteditable]') ? $editable : $editable.find('[contenteditable]');
         $editable.data('NoteHistory').recordUndo($editable);
 
-        event.preventDefault();
-        var r = range.create();
-        if (!r.isCollapsed()) {
-            r = r.deleteContents();
-            r.select();
-        }
+        if (["INPUT", "TEXTAREA"].indexOf(event.target.tagName) === -1) {
+            var r = range.create();
+            if (!r.isCollapsed()) {
+                r = r.deleteContents();
+                r.select();
+            }
 
-        var text = clipboardData.getData("text/plain").replace(/</g, "&lt;");
-        dom.pasteText(r.sc, r.so, text);
-        event.preventDefault();
-        return false;
+            var text = clipboardData.getData("text/plain").replace(/</g, "&lt;");
+            dom.pasteText(r.sc, r.so, text);
+            event.preventDefault();
+            return false;
+        }
     }
 
     var fn_attach = eventHandler.attach;

@@ -51,13 +51,6 @@
 .mb0
     margin-bottom: 0px !important
 
-img, .img, span.fa, iframe, div.media_iframe_video
-    &.img-responsive
-        max-width: 100%
-    &.img-responsive-50
-        max-width: 50%
-    &.img-responsive-25
-        max-width: 25%
 img, .img, span.fa, iframe
     &.padding-small
         padding: 4px
@@ -137,7 +130,6 @@ li > p
 
 img.shadow
     +box-shadow(0px 3px 8px rgba(0, 0, 0, 0.2))
-    margin: 0 auto
 
 h1.text-muted, h2.text-muted, h3.text-muted
     margin-top: 10px
@@ -660,9 +652,9 @@ span[data-oe-type="monetary"]
     margin: 40px auto
 
 .oe_website_overflow_ellipsis
-    white-space:nowrap
-    overflow:hidden
-    text-overflow:ellipsis
+    white-space: nowrap
+    overflow: hidden
+    text-overflow: ellipsis
 
 .oe_website_spinner
     width: 121px
@@ -765,6 +757,7 @@ div.carousel
 /* ---- Menu nav bar ---- {{{ */
 
 #oe_main_menu_navbar
+    position: fixed
     min-height: 34px
     z-index: 1001
     +border-radius(0px)

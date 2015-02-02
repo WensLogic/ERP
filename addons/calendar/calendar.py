@@ -19,6 +19,7 @@ from openerp.tools import DEFAULT_SERVER_DATE_FORMAT, DEFAULT_SERVER_DATETIME_FO
 from openerp.tools.translate import _
 from openerp.http import request
 from operator import itemgetter
+from openerp.exceptions import UserError
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -101,7 +102,7 @@ class calendar_attendee(osv.Model):
     }
 
     def copy(self, cr, uid, id, default=None, context=None):
-        raise osv.except_osv(_('Warning!'), _('You cannot duplicate a calendar attendee.'))
+        raise UserError(_('You cannot duplicate a calendar attendee.'))
 
     def onchange_partner_id(self, cr, uid, ids, partner_id, context=None):
         """
@@ -138,7 +139,7 @@ class calendar_attendee(osv.Model):
         cal = vobject.iCalendar()
         event = cal.add('vevent')
         if not event_obj.start or not event_obj.stop:
-            raise osv.except_osv(_('Warning!'), _("First you have to specify the date of the invitation."))
+            raise UserError(_("First you have to specify the date of the invitation."))
         event.add('created').value = ics_datetime(time.strftime(DEFAULT_SERVER_DATETIME_FORMAT))
         event.add('dtstart').value = ics_datetime(event_obj.start, event_obj.allday)
         event.add('dtend').value = ics_datetime(event_obj.stop, event_obj.allday)
@@ -851,14 +852,15 @@ class calendar_event(osv.Model):
         if values.get('start_datetime') or values.get('start_date') or values.get('start') \
                 or values.get('stop_datetime') or values.get('stop_date') or values.get('stop'):
             allday = values.get("allday", None)
+            event = self.browse(cr, uid, id, context=context)
 
             if allday is None:
                 if id:
-                    allday = self.read(cr, uid, [id], ['allday'], context=context)[0].get('allday')
+                    allday = event.allday
                 else:
                     allday = False
-                    _logger.warning("Calendar - All day is not specified, arbitrarily set to False")
-                    #raise osv.except_osv(_('Error!'), ("Need to know if it's an allday or not..."))
+                    _logger.debug("Calendar - All day is not specified, arbitrarily set to False")
+                    #raise UserError(_("Need to know if it's an allday or not..."))
 
             key = "date" if allday else "datetime"
             notkey = "datetime" if allday else "date"
@@ -871,10 +873,16 @@ class calendar_event(osv.Model):
                         values[fld] = values['%s_%s' % (fld, key)]
 
             diff = False
-            if allday and values.get('stop_date') and values.get('start_date'):
-                diff = datetime.strptime(values['stop_date'].split(' ')[0], DEFAULT_SERVER_DATE_FORMAT) - datetime.strptime(values['start_date'].split(' ')[0], DEFAULT_SERVER_DATE_FORMAT)
-            elif values.get('stop_datetime') and values.get('start_datetime'):
-                diff = datetime.strptime(values['stop_datetime'].split('.')[0], DEFAULT_SERVER_DATETIME_FORMAT) - datetime.strptime(values['start_datetime'].split('.')[0], DEFAULT_SERVER_DATETIME_FORMAT)
+            if allday and (values.get('stop_date') or values.get('start_date')):
+                stop_date = values.get('stop_date') or event.stop_date
+                start_date = values.get('start_date') or event.start_date
+                if stop_date and start_date:
+                    diff = datetime.strptime(stop_date.split(' ')[0], DEFAULT_SERVER_DATE_FORMAT) - datetime.strptime(start_date.split(' ')[0], DEFAULT_SERVER_DATE_FORMAT)
+            elif values.get('stop_datetime') or values.get('start_datetime'):
+                stop_datetime = values.get('stop_datetime') or event.stop_datetime
+                start_datetime = values.get('start_datetime') or event.start_datetime
+                if stop_datetime and start_datetime:
+                    diff = datetime.strptime(stop_datetime.split('.')[0], DEFAULT_SERVER_DATETIME_FORMAT) - datetime.strptime(start_datetime.split('.')[0], DEFAULT_SERVER_DATETIME_FORMAT)
             if diff:
                 duration = float(diff.days) * 24 + (float(diff.seconds) / 3600)
                 values['duration'] = round(duration, 2)
@@ -964,12 +972,14 @@ class calendar_event(osv.Model):
 
     def _check_closing_date(self, cr, uid, ids, context=None):
         for event in self.browse(cr, uid, ids, context=context):
-            if event.stop < event.start:
+            if event.start_datetime and event.stop_datetime < event.start_datetime:
+                return False
+            if event.start_date and event.stop_date < event.start_date:
                 return False
         return True
 
     _constraints = [
-        (_check_closing_date, 'Error ! End date cannot be set before start date.', ['start', 'stop'])
+        (_check_closing_date, 'Error ! End date cannot be set before start date.', ['start_datetime', 'stop_datetime', 'start_date', 'stop_date'])
     ]
 
     def onchange_allday(self, cr, uid, ids, start=False, end=False, starttime=False, endtime=False, startdatetime=False, enddatetime=False, checkallday=False, context=None):
@@ -1233,9 +1243,9 @@ class calendar_event(osv.Model):
         @return: string containing recurring rule (empty if no rule)
         """
         if data['interval'] and data['interval'] < 0:
-            raise osv.except_osv(_('warning!'), _('interval cannot be negative.'))
+            raise UserError(_('interval cannot be negative.'))
         if data['count'] and data['count'] <= 0:
-            raise osv.except_osv(_('warning!'), _('count cannot be negative or 0.'))
+            raise UserError(_('Event recurrence interval cannot be negative.'))
 
         def get_week_string(freq, data):
             weekdays = ['mo', 'tu', 'we', 'th', 'fr', 'sa', 'su']
@@ -1248,7 +1258,7 @@ class calendar_event(osv.Model):
         def get_month_string(freq, data):
             if freq == 'monthly':
                 if data.get('month_by') == 'date' and (data.get('day') < 1 or data.get('day') > 31):
-                    raise osv.except_osv(_('Error!'), ("Please select a proper day of the month."))
+                    raise UserError(_("Please select a proper day of the month."))
 
                 if data.get('month_by') == 'day':  # Eg : Second Monday of the month
                     return ';BYDAY=' + data.get('byday') + data.get('week_list')
@@ -1604,7 +1614,7 @@ class calendar_event(osv.Model):
         context = dict(context or {})
 
         if 'date' in groupby:
-            raise osv.except_osv(_('Warning!'), _('Group by date is not supported, use the calendar view instead.'))
+            raise UserError(_('Group by date is not supported, use the calendar view instead.'))
         virtual_id = context.get('virtual_id', True)
         context.update({'virtual_id': False})
         res = super(calendar_event, self).read_group(cr, uid, domain, fields, groupby, offset=offset, limit=limit, context=context, orderby=orderby, lazy=lazy)

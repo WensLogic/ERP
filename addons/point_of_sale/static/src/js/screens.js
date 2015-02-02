@@ -833,6 +833,9 @@ openerp.point_of_sale.load_screens = function load_screens(instance, module){ //
             });
         },
         button_click: function(){},
+        highlight: function(highlight){
+            this.$el.toggleClass('highlight',!!highlight);
+        },
     });
 
     /* -------- The Product Screen -------- */
@@ -1397,6 +1400,17 @@ openerp.point_of_sale.load_screens = function load_screens(instance, module){ //
 
             this.inputbuffer = "";
             this.firstinput  = true;
+            
+            // This is a keydown handler that prevents backspace from
+            // doing a back navigation
+            this.keyboard_no_backnav = function(event){
+                if (event.keyCode === 8) {  // Backspace
+                    event.preventDefault();
+                }
+            };
+            
+            // This keyboard handler is on keyup to prevent keypress repeats
+            // but it thus cannot prevent the back navigation
             this.keyboard_handler = function(event){
                 var key = '';
                 if ( event.keyCode === 13 ) {         // Enter
@@ -1407,7 +1421,6 @@ openerp.point_of_sale.load_screens = function load_screens(instance, module){ //
                     key = 'CLEAR';
                 } else if ( event.keyCode === 8 ) {   // Backspace 
                     key = 'BACKSPACE';
-                    event.preventDefault(); // Prevents history back nav
                 } else if ( event.keyCode >= 48 && event.keyCode <= 57 ){       // Numbers
                     key = '' + (event.keyCode - 48);
                 } else if ( event.keyCode >= 96 && event.keyCode <= 105 ){      // Numpad Numbers
@@ -1419,7 +1432,7 @@ openerp.point_of_sale.load_screens = function load_screens(instance, module){ //
                 }
 
                 self.payment_input(key);
-
+                event.preventDefault();
             };
         },
         // resets the current input buffer
@@ -1439,6 +1452,11 @@ openerp.point_of_sale.load_screens = function load_screens(instance, module){ //
             var newbuf = this.gui.numpad_input(this.inputbuffer, input, {'firstinput': this.firstinput});
 
             this.firstinput = (newbuf.length === 0);
+
+            // popup block inputs to prevent sneak editing. 
+            if (this.gui.has_popup()) {
+                return;
+            }
             
             if (newbuf !== this.inputbuffer) {
                 this.inputbuffer = newbuf;
@@ -1572,17 +1590,23 @@ openerp.point_of_sale.load_screens = function load_screens(instance, module){ //
                 self.click_invoice();
             });
 
+            this.$('.js_cashdrawer').click(function(){
+                self.pos.proxy.open_cashbox();
+            });
+
         },
         show: function(){
             this.pos.get_order().clean_empty_paymentlines();
             this.reset_input();
             this.render_paymentlines();
             this.order_changes();
-            window.document.body.addEventListener('keydown',this.keyboard_handler);
+            window.document.body.addEventListener('keyup',this.keyboard_handler);
+            window.document.body.addEventListener('keydown',this.keyboard_no_backnav);
             this._super();
         },
         hide: function(){
-            window.document.body.removeEventListener('keydown',this.keyboard_handler);
+            window.document.body.removeEventListener('keyup',this.keyboard_handler);
+            window.document.body.removeEventListener('keydown',this.keyboard_no_backnav);
             this._super();
         },
         // sets up listeners to watch for order changes
@@ -1626,7 +1650,7 @@ openerp.point_of_sale.load_screens = function load_screens(instance, module){ //
 
         // Check if the order is paid, then sends it to the backend,
         // and complete the sale process
-        validate_order: function() {
+        validate_order: function(force_validation) {
             var self = this;
 
             var order = this.pos.get_order();
@@ -1641,7 +1665,7 @@ openerp.point_of_sale.load_screens = function load_screens(instance, module){ //
                 return;
             }
 
-            var plines = currentOrder.get('paymentLines').models;
+            var plines = order.get_paymentlines();
             for (var i = 0; i < plines.length; i++) {
                 if (plines[i].get_type() === 'bank' && plines[i].get_amount() < 0) {
                     this.pos_widget.screen_selector.show_popup('error',{
@@ -1669,6 +1693,26 @@ openerp.point_of_sale.load_screens = function load_screens(instance, module){ //
                     });
                     return;
                 }
+            }
+
+            // if the change is too large, it's probably an input error, make the user confirm.
+            if (!force_validation && (order.get_total_with_tax() * 1000 < order.get_total_paid())) {
+                this.gui.show_popup('confirm',{
+                    title: _t('Please Confirm Large Amount'),
+                    body:  _t('Are you sure that the customer wants to  pay') + 
+                           ' ' + 
+                           this.format_currency(order.get_total_paid()) +
+                           ' ' +
+                           _t('for an order of') +
+                           ' ' +
+                           this.format_currency(order.get_total_with_tax()) +
+                           ' ' +
+                           _t('? Clicking "Confirm" will validate the payment.'),
+                    confirm: function() {
+                        self.validate_order('confirm');
+                    },
+                });
+                return;
             }
 
             if (order.is_paid_with_cash() && this.pos.config.iface_cashdrawer) { 

@@ -58,7 +58,7 @@ define(['summernote/summernote'], function () {
                 title: _t('Center'),
                 event: 'floatMe',
                 value: 'center'
-            })).insertAfter('[data-event="floatMe"][data-value="left"]');
+            })).insertAfter($imagePopover.find('[data-event="floatMe"][data-value="left"]'));
         $imagePopover.find('button[data-event="removeMedia"]').parent().remove();
         $imagePopover.find('button[data-event="floatMe"][data-value="none"]').remove();
 
@@ -80,8 +80,24 @@ define(['summernote/summernote'], function () {
         $ul.append('<li><a data-event="padding" href="#" data-value="large">'+_t('Large')+'</a></li>');
         $ul.append('<li><a data-event="padding" href="#" data-value="xl">'+_t('Xl')+'</a></li>');
 
+        // circle, boxed... options became toggled
+        $imagePopover.find('[data-event="imageShape"]:not([data-value])').remove();
+        var $button = $(tplIconButton('fa fa-sun-o', {
+                title: _t('Shadow'),
+                event: 'imageShape',
+                value: 'shadow'
+            })).insertAfter($imagePopover.find('[data-event="imageShape"][data-value="img-circle"]'));
+
+        // add spin for fa
+        var $spin = $('<div class="btn-group hidden only_fa"/>').insertAfter($button.parent());
+        $(tplIconButton('fa fa-refresh', {
+                title: _t('Spin'),
+                event: 'imageShape',
+                value: 'fa-spin'
+            })).appendTo($spin);
+
         // resize for fa
-        var $resizefa = $('<div class="btn-group hidden"/>')
+        var $resizefa = $('<div class="btn-group hidden only_fa"/>')
             .insertAfter($imagePopover.find('.btn-group:has([data-event="resize"])'));
         $(tplButton('<span class="note-fontsize-10">1x</span>', {
           title: "1x",
@@ -129,6 +145,9 @@ define(['summernote/summernote'], function () {
 
         $linkPopover.find('.popover-content').append($airPopover.find(".note-history").clone());
 
+        $linkPopover.find('button[data-event="showLinkDialog"] i').attr("class", "fa fa-link");
+        $linkPopover.find('button[data-event="unlink"]').before($airPopover.find('button[data-event="showImageDialog"]').clone());
+
         //////////////// text/air popover
 
         //// highlight the text format
@@ -159,6 +178,16 @@ define(['summernote/summernote'], function () {
 
     var fn_boutton_update = eventHandler.popover.button.update;
     eventHandler.popover.button.update = function ($container, oStyle) {
+        // stop animation when edit content
+        var previous = $(".note-control-selection").data('target');
+        if (previous) {
+            $(previous).css({"-webkit-animation-play-state": "", "animation-play-state": "", "-webkit-transition": "", "transition": "", "-webkit-animation": "", "animation": ""});
+        }
+        if (oStyle.image) {
+            $(oStyle.image).css({"-webkit-animation": "none", "animation": "none"});
+        }
+        // end
+
         fn_boutton_update.call(this, $container, oStyle);
 
         $container.find('button[data-event="undo"]').attr('disabled', !history.hasUndo());
@@ -173,24 +202,36 @@ define(['summernote/summernote'], function () {
             $container.find('a[data-event="padding"][data-value="xl"]').parent().toggleClass("active", $(oStyle.image).hasClass("padding-xl"));
             $container.find('a[data-event="padding"][data-value=""]').parent().toggleClass("active", !$container.find('.active a[data-event="padding"]').length);
 
-            if ($(oStyle.image).is(".fa")) {
+            if (dom.isImgFont(oStyle.image)) {
 
-                $container.find('.btn-group:has(button[data-event="resize"])').addClass("hidden");
-                $container.find('.btn-group:has(button[data-event="resizefa"])').removeClass("hidden");
+                $container.find('.btn-group:not(.only_fa):has(button[data-event="resize"],button[data-event="imageShape"])').addClass("hidden");
+                $container.find('.only_fa').removeClass("hidden");
                 $container.find('button[data-event="resizefa"][data-value="2"]').toggleClass("active", $(oStyle.image).hasClass("fa-2x"));
                 $container.find('button[data-event="resizefa"][data-value="3"]').toggleClass("active", $(oStyle.image).hasClass("fa-3x"));
                 $container.find('button[data-event="resizefa"][data-value="4"]').toggleClass("active", $(oStyle.image).hasClass("fa-4x"));
                 $container.find('button[data-event="resizefa"][data-value="5"]').toggleClass("active", $(oStyle.image).hasClass("fa-5x"));
                 $container.find('button[data-event="resizefa"][data-value="1"]').toggleClass("active", !$container.find('.active[data-event="resizefa"]').length);
+
+                $container.find('button[data-event="imageShape"][data-value="fa-spin"]').toggleClass("active", $(oStyle.image).hasClass("fa-spin"));
                 
             } else {
 
-                $container.find('.btn-group:has(button[data-event="resizefa"])').addClass("hidden");
-                $container.find('.btn-group:has(button[data-event="resize"])').removeClass("hidden");
-                $container.find('button[data-event="resize"][data-value="1"]').toggleClass("active", $(oStyle.image).hasClass("img-responsive"));
-                $container.find('button[data-event="resize"][data-value="0.5"]').toggleClass("active", $(oStyle.image).hasClass("img-responsive-50"));
-                $container.find('button[data-event="resize"][data-value="0.25"]').toggleClass("active", $(oStyle.image).hasClass("img-responsive-25"));
+                $container.find('.hidden:not(.only_fa)').removeClass("hidden");
+                $container.find('.only_fa').addClass("hidden");
+                var width = ($(oStyle.image).attr('style') || '').match(/(^|;|\s)width:\s*([0-9]+%)/);
+                if (width) {
+                    width = width[2];
+                }
+                $container.find('button[data-event="resize"][data-value="1"]').toggleClass("active", width === "100%");
+                $container.find('button[data-event="resize"][data-value="0.5"]').toggleClass("active", width === "50%");
+                $container.find('button[data-event="resize"][data-value="0.25"]').toggleClass("active", width === "25%");
+
+                $container.find('button[data-event="imageShape"][data-value="shadow"]').toggleClass("active", $(oStyle.image).hasClass("shadow"));
                 
+                if (!$(oStyle.image).is("img")) {
+                    $container.find('.btn-group:has(button[data-event="imageShape"])').addClass("hidden");
+                }
+
             }
 
             $container.find('button[data-event="floatMe"][data-value="left"]').toggleClass("active", $(oStyle.image).hasClass("pull-left"));
@@ -278,9 +319,7 @@ define(['summernote/summernote'], function () {
     /* hack for image and link editor */
 
     function getImgTarget () {
-      var rng = range.create();
-      var target = rng.sc.childNodes.length && rng.sc.childNodes[rng.so] || rng.sc;
-      return target;
+      return $(".note-control-selection").data('target');
     }
     eventHandler.editor.padding = function ($editable, sValue) {
         var $target = $(getImgTarget());
@@ -295,11 +334,11 @@ define(['summernote/summernote'], function () {
     eventHandler.editor.resize = function ($editable, sValue) {
         var $target = $(getImgTarget());
         $editable.data('NoteHistory').recordUndo();
-        switch (+sValue) {
-            case 1: $target.toggleClass('img-responsive').removeClass('img-responsive-50 img-responsive-25'); break;
-            case 0.5: $target.toggleClass('img-responsive-50').removeClass('img-responsive img-responsive-25'); break;
-            case 0.25: $target.toggleClass('img-responsive-25').removeClass('img-responsive img-responsive-50'); break;
+        var width = ($target.attr('style') || '').match(/(^|;|\s)width:\s*([0-9]+)%/);
+        if (width) {
+            width = width[2]/100;
         }
+        $(getImgTarget()).css('width', width != sValue ? (sValue * 100) + '%' : '');
     };
     eventHandler.editor.resizefa = function ($editable, sValue) {
         var $target = $(getImgTarget());
@@ -318,17 +357,31 @@ define(['summernote/summernote'], function () {
             case 'right': $target.toggleClass('pull-right').removeClass('pull-left center-block'); break;
         }
     };
+    eventHandler.editor.imageShape = function ($editable, sValue) {
+        var $target = $(getImgTarget());
+        $editable.data('NoteHistory').recordUndo();
+        $target.toggleClass(sValue);
+    };
 
     eventHandler.dialog.showLinkDialog = function ($editable, $dialog, linkInfo) {
+        $editable.data('range').select();
+        $editable.data('NoteHistory').recordUndo();
+        
         var editor = new website.editor.LinkDialog($editable, linkInfo);
         editor.appendTo(document.body);
 
         var def = new $.Deferred();
         editor.on("save", this, function (linkInfo) {
+            linkInfo.range.select();
+            $editable.data('range', linkInfo.range);
             def.resolve(linkInfo);
+            $editable.data('NoteHistory').popUndo();
             $('.note-popover .note-link-popover').show();
         });
-        editor.on("cancel", this, function () { def.reject(); });
+        editor.on("cancel", this, function () {
+            def.reject();
+            $editable.data('NoteHistory').popUndo();
+        });
         return def;
     };
     eventHandler.dialog.showImageDialog = function ($editable) {
@@ -347,34 +400,56 @@ define(['summernote/summernote'], function () {
         new website.editor.alt($editable, media).appendTo(document.body);
     };
 
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     dom.isImg = function (node) {
-        return node && (node.nodeName === "IMG" ||
-            (node.className && node.className.match(/(^|\s)fa(-|\s|$)/i)) ||
-            (node.className && node.className.match(/(^|\s)media_iframe_video(\s|$)/i)) ||
-            (node.parentNode && node.parentNode.className && node.parentNode.className.match(/(^|\s)media_iframe_video(\s|$)/i)) );
+        return dom.isImgFont(node) || (node && (node.nodeName === "IMG" || (node.className && node.className.match(/(^|\s)media_iframe_video(\s|$)/i)) ));
     };
     dom.isForbiddenNode = function (node) {
         return $(node).is(".media_iframe_video, .fa, img");
     };
 
+    dom.isImgFont = function (node) {
+        var nodeName = node && node.nodeName.toUpperCase();
+        var className = (node && node.className || "");
+        if (node && (nodeName === "SPAN" || nodeName === "I") && className.length) {
+            var classNames = className.split(/\s+/);
+            for (var k=0; k<website.editor.fontIcons.length; k++) {
+                if (_.intersection(website.editor.fontIcons[k].icons, classNames).length) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    // re-overwrite font to include theme icons
+    var isFont = dom.isFont;
+    dom.isFont = function (node) {
+        return dom.isImgFont(node) || isFont(node);
+    };
+
     //////////////////////////////////////////////////////////////////////////////////////////////////////////
     /* fix ie and re-range to don't break snippet*/
 
+    var initial_data = {};
     function reRangeSelectKey (event) {
-        if ((!event.keyCode || event.shiftKey) && !$(event.target).is("input, textarea, select")) {
+        initial_data.range = null;
+        if (event.shiftKey && event.keyCode >= 37 && event.keyCode <= 40 && !$(event.target).is("input, textarea, select")) {
             var r = range.create();
             if (r) {
-                r.reRange().select();
+                var rng = r.reRange(event.keyCode <= 38);
+                if (r !== rng) {
+                    rng.select();
+                }
             }
         }
     }
-
     function reRangeSelect (event, dx, dy) {
         var r = range.create();
         if (!r || r.isCollapsed()) return;
 
         // check if the user move the caret on up or down
-        var data = r.reRange(dy < 0);
+        var data = r.reRange(dy < 0 || (dy === 0 && dx < 0));
 
         if (data.sc !== r.sc || data.so !== r.so || data.ec !== r.ec || data.eo !== r.eo) {
             setTimeout(function () {
@@ -386,19 +461,46 @@ define(['summernote/summernote'], function () {
         $(data.sc).closest('.o_editable').data('range', r);
         return r;
     }
-    var cursor_mousedown;
     $(document).mousedown(function (event) {
-        cursor_mousedown = event;
+        if (!$(event.target).closest(".o_editable").length) {
+            return;
+        }
+        var r = range.create();
+        if (initial_data.range && event.shiftKey) {
+            initial_data.range.select();
+        }
+        if (event.shiftKey) {
+            var rect = r && r.getClientRects();
+            initial_data.rect = rect && rect.length ? rect[0] : { top: 0, left: 0 };
+        }
+        initial_data.event = event;
+    });
+    $(document).mouseup(function (event) {
+        if (!$(event.target).closest(".o_editable").length) {
+            return;
+        }
+        if (!initial_data.range || !event.shiftKey) {
+            setTimeout(function () {
+                initial_data.range = range.create();
+            },0);
+        }
     });
     function summernote_mouseup (event) {
         if ($(event.target).closest("#website-top-navbar, .note-popover").length) {
             return;
         }
+        if ($(event.target).is(":o_editable")) {
+            var a = summernote_ie_fix(event, function (node) { return node.tagName === "A"; });
+            if (a) {
+                range.create().select();
+            }
+        }
+
         // don't rerange if simple click
-        if (cursor_mousedown) {
-            var dx = event.clientX-cursor_mousedown.clientX;
-            var dy = event.clientY-cursor_mousedown.clientY;
-            if (10 < Math.pow(dx, 2)+Math.pow(dy, 2) ) {
+        if (initial_data.event) {
+            var dx = event.clientX - (event.shiftKey ? initial_data.rect.left : initial_data.event.clientX);
+            var dy = event.clientY - (event.shiftKey ? initial_data.rect.top : initial_data.event.clientY);
+            if (10 < Math.pow(dx, 2)+Math.pow(dy, 2)) {
                 reRangeSelect(event, dx, dy);
             }
         }
@@ -406,13 +508,21 @@ define(['summernote/summernote'], function () {
     var remember_selection;
     function summernote_mousedown (event) {
         history.splitNext();
+        
         if (!!document.documentMode) {
-            summernote_ie_fix(event);
+            summernote_ie_fix(event, function (node) { return node.tagName === "DIV" || node.tagName === "IMG" || (node.dataset && node.dataset.oeModel); });
+        } else if (last_div && event.target !== last_div && last_div.tagName === "A") {
+            summernote_ie_fix(event, function (node) { return node.dataset && node.dataset.oeModel; });
         }
+
         var r = range.create();
         if ($(r ? dom.node(r.sc) : event.srcElement || event.target).closest('#website-top-navbar, #oe_main_menu_navbar, .note-popover, .modal').length) {
             if (remember_selection && !$(event.target).is('input, select, label, button, a')) {
-                remember_selection.select();
+                try {
+                    remember_selection.select();
+                } catch (e) {
+                    console.warn(e);
+                }
             }
         } else if (r && $(dom.node(r.sc)).closest('.o_editable, .note-editable').length) {
             remember_selection = r;
@@ -422,12 +532,12 @@ define(['summernote/summernote'], function () {
     var last_div;
     var last_div_change;
     var last_editable;
-    function summernote_ie_fix (event) {
+    function summernote_ie_fix (event, pred) {
         var editable;
         var div;
         var node = event.target;
         while(node.parentNode) {
-            if (!div && (node.tagName === "DIV" || node.tagName === "IMG" || (node.dataset && node.dataset.oeModel))) {
+            if (!div && pred(node)) {
                 div = node;
             }
             if(last_div !== node && (node.getAttribute('contentEditable')==='false' || node.className && (node.className.indexOf('o_not_editable') !== -1))) {
@@ -473,6 +583,7 @@ define(['summernote/summernote'], function () {
         } else {
             last_div_change = null;
         }
+        return editable !== div ? div : null;
     }
 
     var fn_attach = eventHandler.attach;
@@ -485,7 +596,7 @@ define(['summernote/summernote'], function () {
         oLayoutInfo.editor.on('dblclick', 'img, .media_iframe_video, span.fa, i.fa, span.fa', function (event) {
             new website.editor.MediaDialog(oLayoutInfo.editor, event.target).appendTo(document.body);
         });
-        $(document).on("keydown keyup", reRangeSelectKey);
+        $(document).on("keyup", reRangeSelectKey);
         
         var clone_data = false;
         var $node = oLayoutInfo.editor;
@@ -533,7 +644,7 @@ define(['summernote/summernote'], function () {
         $(document).off('mousedown', summernote_mousedown);
         $(document).off('mouseup', summernote_mouseup);
         oLayoutInfo.editor.off("dblclick");
-        $(document).off("keydown keyup", reRangeSelectKey);
+        $(document).off("keyup", reRangeSelectKey);
     };
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -727,6 +838,7 @@ define(['summernote/summernote'], function () {
         };
 
         this.popUndo = function () {
+            pos--;
             aUndo.pop();
         };
 
@@ -785,6 +897,19 @@ define(['summernote/summernote'], function () {
             return this;
         }
     });
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    function change_default_bootstrap_animation_to_edit() {
+        var fn_carousel = $.fn.carousel;
+        $.fn.carousel = function () {
+            var res = fn_carousel.apply(this, arguments);
+            // off bootstrap keydown event to remove event.preventDefault()
+            // and allow to change cursor position
+            $(this).off('keydown.bs.carousel');
+            return res;
+        };
+    }
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -892,7 +1017,6 @@ define(['summernote/summernote'], function () {
             this.$('#website-top-view').hide();
             this.$el.show();
             this.$('#website-top-edit').show();
-            $('.css_non_editable_mode_hidden').removeClass("css_non_editable_mode_hidden");
             
             if (!no_editor) {
                 this.rte.start_edition();
@@ -911,7 +1035,7 @@ define(['summernote/summernote'], function () {
         rte_changed: function () {
             this.$buttons.save.prop('disabled', false);
         },
-        save: function () {
+        _save: function () {
             var self = this;
 
             var saved = {}; // list of allready saved views and data
@@ -920,7 +1044,7 @@ define(['summernote/summernote'], function () {
             var defs = $('.o_editable')
                 .filter('.o_dirty')
                 .removeAttr('contentEditable')
-                .removeClass('o_dirty o_editable oe_carlos_danger')
+                .removeClass('o_dirty o_editable oe_carlos_danger o_is_inline_editable')
                 .map(function () {
                     var $el = $(this);
 
@@ -979,9 +1103,17 @@ define(['summernote/summernote'], function () {
                 });
             });
         },
+        save: function () {
+            return this._save().then(function () {
+                website.reload();
+            });
+        },
         /**
          * Saves an RTE content, which always corresponds to a view section (?).
          */
+        save_without_reload: function () {
+            return this._save();
+        },
         saveElement: function ($el) {
             var markup = $el.prop('outerHTML');
             return openerp.jsonRpc('/web/dataset/call', 'call', {
@@ -1030,10 +1162,10 @@ define(['summernote/summernote'], function () {
             if(this.loaded) {
                 return;
             }
-            openerp.jsonRpc('/website/customize_template_get', 'call', { 'xml_id': this.view_name }).then(
+            openerp.jsonRpc('/website/customize_template_get', 'call', { 'key': this.view_name }).then(
                 function(result) {
                     _.each(result, function (item) {
-                        if (item.xml_id === "website.debugger" && !window.location.search.match(/[&?]debug(&|$)/)) return;
+                        if (item.key === "website.debugger" && !window.location.search.match(/[&?]debug(&|$)/)) return;
                         if (item.header) {
                             self.$menu.append('<li class="dropdown-header">' + item.name + '</li>');
                         } else {
@@ -1074,6 +1206,8 @@ define(['summernote/summernote'], function () {
             this.EditorBar = EditorBar;
             $('.inline-media-link').remove();
             this._super.apply(this, arguments);
+
+            computeFonts();
         },
         /**
          * Add a record undo to history
@@ -1109,6 +1243,8 @@ define(['summernote/summernote'], function () {
          */
         start_edition: function (restart) {
             var self = this;
+
+            change_default_bootstrap_animation_to_edit();
 
             this.history = history;
 
@@ -1184,6 +1320,12 @@ define(['summernote/summernote'], function () {
             $('.o_editable').each(function () {
                 var node = this;
                 var $node = $(node);
+
+                // add class to display inline-block for empty t-field
+                if(window.getComputedStyle(node).display === "inline") {
+                    $node.addClass('o_is_inline_editable');
+                }
+
                 // start element observation
                 observer.observe(node, OBSERVER_CONFIG);
                 $(node).one('content_changed', function () {
@@ -1198,6 +1340,22 @@ define(['summernote/summernote'], function () {
                 $('#wrapwrap, .o_editable').on('click', '*', function (event) {
                     event.preventDefault();
                 });
+
+                $('body').addClass("editor_enable");
+
+                $(document)
+                    .tooltip({
+                        selector: '[data-oe-readonly]',
+                        container: 'body',
+                        trigger: 'hover',
+                        delay: { "show": 1000, "hide": 100 },
+                        placement: 'bottom',
+                        title: _t("Readonly field")
+                    })
+                    .on('click', function () {
+                        $(this).tooltip('hide');
+                    });
+
                 self.trigger('rte:ready');
             }
         },
@@ -1394,7 +1552,12 @@ define(['summernote/summernote'], function () {
                         sc = dom.firstChild(so ? sc.childNodes[so] : sc);
                         so = 0;
                     } else if (so !== sc.textContent.length) {
-                        sc = sc.splitText(so);
+                        if (sc === ec) {
+                            ec = sc = sc.splitText(so);
+                            eo -= so;
+                        } else {
+                            sc = sc.splitText(so);
+                        }
                         so = 0;
                     }
                     if (ec.tagName) {
@@ -1693,6 +1856,7 @@ define(['summernote/summernote'], function () {
                 this.rte = this.$editable.rte || this.$editable.data('rte');
             }
             this.options = options || {};
+            this.old_media = media;
             this.media = media;
             this.isNewMedia = !media;
             this.range = range.create();
@@ -1700,7 +1864,7 @@ define(['summernote/summernote'], function () {
         start: function () {
             var self = this;
 
-            this.only_images = this.options.select_images || (this.media && $(this.media).parent().data("oe-field") === "image");
+            this.only_images = this.options.only_images || this.options.select_images || (this.media && $(this.media).parent().data("oe-field") === "image");
             if (this.only_images) {
                 this.$('[href="#editor-media-video"], [href="#editor-media-icon"]').addClass('hidden');
             }
@@ -1750,6 +1914,7 @@ define(['summernote/summernote'], function () {
                 return;
             }
             if(this.rte) {
+                this.range.select();
                 this.rte.historyRecordUndo(this.media);
             }
 
@@ -1770,10 +1935,14 @@ define(['summernote/summernote'], function () {
                 this.range.insertNode(this.media, true);
                 this.active.media = this.media;
             }
-
             this.active.save();
 
-            self.trigger("saved", self.active.media, self.media);
+            if (this.active.add_class) {
+                $(this.media).addClass(this.active.add_class);
+            }
+
+            $(document.body).trigger("media-saved", [self.active.media, self.old_media]);
+            self.trigger("saved", [self.active.media, self.old_media]);
             setTimeout(function () {
                 range.createFromNode(self.active.media).select();
                 click_event(self.active.media, "mousedown");
@@ -1850,9 +2019,10 @@ define(['summernote/summernote'], function () {
             // avoid typos, prevent addition of new properties to the object
             Object.preventExtensions(o);
 
-            if (!this.media) { this.media = document.getElementsByClassName('insert-media')[0]; }
-            if (this.media) {
+            if ($(this.media).is("img")) {
                 o.url = this.media.getAttribute('src');
+            } else {
+                this.add_class = "img-responsive pull-left";
             }
             this.parent.$(".pager > li").click(function (e) {
                 e.preventDefault();
@@ -1898,29 +2068,10 @@ define(['summernote/summernote'], function () {
             }
 
             $(this.media).attr('src', img.url).attr('alt', img.alt);
-            
-            var element = document.getElementsByClassName('insert-media')[0];
-            $('p').removeClass('insert-media');
-
-
-            if (!(element = this.media)) {
-                element = document.createElement('img');
-                element.addClass('img');
-                element.addClass('img-responsive');
-                setTimeout(function () {
-                    editor.insertElement(element);
-                }, 0);
-                this.media = element;
-            }
-
-            // not air mode
-            if (!$(this.media).closest(".o_editable").length) {
-                $(this.media).addClass("img-responsive");
-            }
 
             var style = this.style;
-            element.setAttribute('src', img.url);
-            if (style) { element.addClass(style); }
+            this.media.setAttribute('src', img.url);
+            if (style) { this.media.addClass(style); }
 
             return this.media;
         },
@@ -2106,6 +2257,7 @@ define(['summernote/summernote'], function () {
         },
     });
 
+
     function getCssSelectors(filter) {
         var classes = [];
         var sheets = document.styleSheets;
@@ -2123,6 +2275,22 @@ define(['summernote/summernote'], function () {
         }
         return classes;
     }
+    function computeFonts() {
+        _.each(website.editor.fontIcons, function (data) {
+            data.icons = _.map(getCssSelectors(data.parser), function (css) {
+                return css.replace(/::?before$/, '');
+            });
+        });
+    }
+
+    /* list of font icons to load by editor. The icons are displayed in the media editor and
+     * identified like font and image (can be colored, spinned, resized with fa classes).
+     * To add font, push a new object {base, parser}
+     * - base: class who appear on all fonts (eg: fa fa-refresh)
+     * - parser: regular expression used to select all font in css style sheets
+     */
+    website.editor.fontIcons = [{'base': 'fa', 'parser': /(?=^|\s)(\.fa-[0-9a-z_-]+::?before)/i}];
+
 
     /**
      * FontIconsDialog widget. Lets users change a font awsome, suport all
@@ -2131,26 +2299,24 @@ define(['summernote/summernote'], function () {
     website.editor.FontIconsDialog = openerp.Widget.extend({
         template: 'website.editor.dialog.font-icons',
         events : _.extend({}, website.editor.Dialog.prototype.events, {
-            change: 'update_preview',
             'click .font-icons-icon': function (e) {
                 e.preventDefault();
                 e.stopPropagation();
 
                 this.$('#fa-icon').val(e.target.getAttribute('data-id'));
-                this.update_preview();
+                $(".font-icons-icon").removeClass("font-icons-selected");
+                $(event.target).addClass("font-icons-selected");
             },
-            'click #fa-preview span': function (e) {
-                e.preventDefault();
-                e.stopPropagation();
+        }),
 
-                this.$('#fa-size').val(e.target.getAttribute('data-size'));
-                this.update_preview();
-            },
-        }),
-        // extract list of FontAwesome from the cheatsheet.
-        icons: _.map(getCssSelectors(/(?=^|\s)(\.fa-[0-9a-z_-]+::?before)/i), function (css) {
-            return css.replace(/::?before$/, '');
-        }),
+        // extract list of font (like awsome) from the cheatsheet.
+        renderElement: function() {
+            this.iconsParser = website.editor.fontIcons;
+            this.icons = _.flatten(_.map(website.editor.fontIcons, function (data) {
+                    return data.icons;
+                }));
+            this._super();
+        },
 
         init: function (parent, media) {
             this._super();
@@ -2158,40 +2324,78 @@ define(['summernote/summernote'], function () {
             this.media = media;
         },
         start: function () {
-            this.$preview = this.$('.preview-container').detach();
             return this._super().then(this.proxy('load_data'));
         },
         search: function (needle) {
-            var icons = this.icons;
+            var iconsParser = this.iconsParser;
             if (needle) {
-                icons = _(icons).filter(function (icon) {
-                    return icon.id.substring(3).indexOf(needle) !== -1;
-                });
+                var parser = [];
+                var fontIcons = website.editor.fontIcons, fontIcon;
+
+                for (var k=0; k<fontIcons.length; k++) {
+                    fontIcon = fontIcons[k];
+                    var icons = _(fontIcon.icons).filter(function (icon) {
+                        return icon.indexOf(needle) !== -1;
+                    });
+                    if (icons.length) {
+                        parser.push({
+                            base: fontIcon.base,
+                            icons: icons
+                        });
+                    }
+                }
+                iconsParser = parser;
             }
             this.$('div.font-icons-icons').html(
-                openerp.qweb.render(
-                    'website.editor.dialog.font-icons.icons',
-                    {icons: icons}));
+                openerp.qweb.render('website.editor.dialog.font-icons.icons', {'iconsParser': iconsParser}));
         },
         /**
          * Removes existing FontAwesome classes on the bound element, and sets
          * all the new ones if necessary.
          */
         save: function () {
+            var self = this;
             this.parent.trigger("save", this.media);
+            var icons = this.icons;
             var style = this.media.attributes.style ? this.media.attributes.style.textContent : '';
             var classes = (this.media.className||"").split(/\s+/);
             var non_fa_classes = _.reject(classes, function (cls) {
-                return cls === 'fa' || /^(fa|img)-/.test(cls);
+                return self.getFont(cls);
             });
             var final_classes = non_fa_classes.concat(this.get_fa_classes());
             if (this.media.tagName !== "SPAN") {
                 var media = document.createElement('span');
                 $(this.media).replaceWith(media);
                 this.media = media;
+                style = style.replace(/\s*width:[^;]+/, '');
             }
-            $(this.media).attr("class", final_classes.join(' ')).attr("style", style);
+            $(this.media).attr("class", _.compact(final_classes).join(' ')).attr("style", style);
         },
+        /**
+         * return the data font object (with base, parser and icons) or null
+         */
+        getFont: function (classNames) {
+            if (!(classNames instanceof Array)) {
+                classNames = (classNames||"").split(/\s+/);
+            }
+            var fontIcons = website.editor.fontIcons, fontIcon, className;
+            for (var i=0; i<classNames.length; i++) {
+                className = classNames[i];
+                for (var k=0; k<fontIcons.length; k++) {
+                    fontIcon = fontIcons[k];
+                    if (className === fontIcon.base || fontIcon.icons.indexOf(className) !== -1) {
+                        return {
+                            'base': fontIcon.base,
+                            'parser': fontIcon.parser,
+                            'icons': fontIcon.icons,
+                            'font': className
+                        };
+                    }
+                }
+            }
+            return null;
+        },
+
         /**
          * Looks up the various FontAwesome classes on the bound element and
          * sets the corresponding template/form elements to the right state.
@@ -2218,55 +2422,96 @@ define(['summernote/summernote'], function () {
                     case 'fa-border':
                         this.$('#fa-border').prop('checked', true);
                         continue;
+                    case '': continue;
                     default:
-                        if (!/^fa-/.test(cls)) { continue; }
-                        this.$('#fa-icon').val(cls);
+                        $(".font-icons-icon").removeClass("font-icons-selected").filter("."+cls).addClass("font-icons-selected");
+                        for (var k=0; k<this.icons.length; k++) {
+                            if (this.icons.indexOf(cls) !== -1) {
+                                this.$('#fa-icon').val(cls);
+                                break;
+                            }
+                        }
                 }
             }
-            this.update_preview();
         },
         /**
          * Serializes the dialog to an array of FontAwesome classes. Includes
          * the base ``fa``.
          */
         get_fa_classes: function () {
+            var font = this.getFont(this.$('#fa-icon').val());
             return [
-                'fa',
-                this.$('#fa-icon').val(),
+                font ? font.base : 'fa',
+                font ? font.font : "",
                 this.$('#fa-size').val(),
                 this.$('#fa-rotation').val(),
                 this.$('#fa-border').prop('checked') ? 'fa-border' : ''
             ];
         },
-        update_preview: function () {
-            this.$preview.empty();
-            var $preview = this.$('#fa-preview').empty();
-
-            var sizes = ['fa-1x', 'fa-2x', 'fa-3x', 'fa-4x', 'fa-5x'];
-            var classes = this.get_fa_classes();
-            var no_sizes = _.difference(classes, sizes).join(' ');
-            var selected = false;
-            for (var i = sizes.length - 1; i >= 0; i--) {
-                var size = sizes[i];
-
-                var $p = $('<span>')
-                        .attr('data-size', size)
-                        .addClass(size)
-                        .addClass(no_sizes);
-
-                if ((size && _.contains(classes, size)) || (size === "" && !selected)) {
-                    this.$preview.append($p.clone());
-                    this.$('#fa-size').val(size);
-                    $p.addClass('font-icons-selected');
-                    selected = true;
-                }
-                $preview.prepend($p);
-            }
-        },
         clear: function () {
             this.media.className = this.media.className.replace(/(^|\s)(fa(\s|$)|fa-[^\s]*)/g, ' ');
         },
     });
+
+
+    function createVideoNode(url) {
+        // video url patterns(youtube, instagram, vimeo, dailymotion, youku)
+        var ytRegExp = /^(?:(?:https?:)?\/\/)?(?:www\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))((\w|-){11})(?:\S+)?$/;
+        var ytMatch = url.match(ytRegExp);
+
+        var igRegExp = /\/\/instagram.com\/p\/(.[a-zA-Z0-9]*)/;
+        var igMatch = url.match(igRegExp);
+
+        var vRegExp = /\/\/vine.co\/v\/(.[a-zA-Z0-9]*)/;
+        var vMatch = url.match(vRegExp);
+
+        var vimRegExp = /\/\/(player.)?vimeo.com\/([a-z]*\/)*([0-9]{6,11})[?]?.*/;
+        var vimMatch = url.match(vimRegExp);
+
+        var dmRegExp = /.+dailymotion.com\/(video|hub)\/([^_]+)[^#]*(#video=([^_&]+))?/;
+        var dmMatch = url.match(dmRegExp);
+
+        var youkuRegExp = /\/\/v\.youku\.com\/v_show\/id_(\w+)\.html/;
+        var youkuMatch = url.match(youkuRegExp);
+
+        var $video = $('<iframe>');
+        if (ytMatch && ytMatch[1].length === 11) {
+          var youtubeId = ytMatch[1];
+          $video = $('<iframe>')
+            .attr('src', '//www.youtube.com/embed/' + youtubeId)
+            .attr('width', '640').attr('height', '360');
+        } else if (igMatch && igMatch[0].length) {
+          $video = $('<iframe>')
+            .attr('src', igMatch[0] + '/embed/')
+            .attr('width', '612').attr('height', '710')
+            .attr('scrolling', 'no')
+            .attr('allowtransparency', 'true');
+        } else if (vMatch && vMatch[0].length) {
+          $video = $('<iframe>')
+            .attr('src', vMatch[0] + '/embed/simple')
+            .attr('width', '600').attr('height', '600')
+            .attr('class', 'vine-embed');
+        } else if (vimMatch && vimMatch[3].length) {
+          $video = $('<iframe webkitallowfullscreen mozallowfullscreen allowfullscreen>')
+            .attr('src', '//player.vimeo.com/video/' + vimMatch[3])
+            .attr('width', '640').attr('height', '360');
+        } else if (dmMatch && dmMatch[2].length) {
+          $video = $('<iframe>')
+            .attr('src', '//www.dailymotion.com/embed/video/' + dmMatch[2])
+            .attr('width', '640').attr('height', '360');
+        } else if (youkuMatch && youkuMatch[1].length) {
+          $video = $('<iframe webkitallowfullscreen mozallowfullscreen allowfullscreen>')
+            .attr('height', '498')
+            .attr('width', '510')
+            .attr('src', '//player.youku.com/embed/' + youkuMatch[1]);
+        } else {
+          // this is not a known video link. Now what, Cat? Now what?
+        }
+
+        $video.attr('frameborder', 0);
+
+        return $video;
+      };
 
     /**
      * VideoDialog widget. Lets users change a video, support all summernote
@@ -2296,6 +2541,8 @@ define(['summernote/summernote'], function () {
                 this.$("input#urlvideo").val(src);
                 this.$("#autoplay").attr("checked", src.indexOf('autoplay=1') != -1);
                 this.get_video();
+            } else {
+                this.add_class = "pull-left";
             }
             return this._super();
         },
@@ -2319,8 +2566,9 @@ define(['summernote/summernote'], function () {
         },
         get_video: function (event) {
             if (event) event.preventDefault();
-            var $video = eventHandler.editor.insertVideo(null, this.$("input#urlvideo").val(), true);
-            this.$iframe.attr("src", $video ? $video.attr("src") : "");
+            var $video = createVideoNode(this.$("input#urlvideo").val());
+            this.$iframe.replaceWith($video);
+            this.$iframe = $video;
             return false;
         },
         save: function () {
@@ -2333,11 +2581,10 @@ define(['summernote/summernote'], function () {
             var video_type = this.$("#video_type").val();
             var $iframe = $(
                 '<div class="media_iframe_video" data-src="'+this.$iframe.attr("src")+'">'+
-                    '<div class="css_editable_mode_display" contentEditable="false">&nbsp;</div>'+
+                    '<div class="css_editable_mode_display">&nbsp;</div>'+
                     '<div class="media_iframe_video_size" contentEditable="false">&nbsp;</div>'+
                     '<iframe src="'+this.$iframe.attr("src")+'" frameborder="0" allowfullscreen="allowfullscreen" contentEditable="false"></iframe>'+
                 '</div>');
-            $('.insert-media').replaceWith($iframe);
             $(this.media).replaceWith($iframe);
             this.media = $iframe[0];
         },
