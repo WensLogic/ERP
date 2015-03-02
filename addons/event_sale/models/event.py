@@ -43,7 +43,7 @@ class event_ticket(models.Model):
     registration_ids = fields.One2many('event.registration', 'event_ticket_id', 'Registrations')
     price = fields.Float('Price', digits=dp.get_precision('Product Price'))
     deadline = fields.Date("Sales End")
-    is_expired = fields.Boolean('Is Expired', compute='_is_expired', store=True)
+    is_expired = fields.Boolean('Is Expired', compute='_is_expired')
 
     @api.model
     def _default_product_id(self):
@@ -56,10 +56,6 @@ class event_ticket(models.Model):
     @api.one
     @api.depends('deadline')
     def _is_expired(self):
-        # FIXME: A ticket is considered expired when the deadline is passed. The deadline should
-        #        be considered in the timezone of the event, not the timezone of the user!
-        #        Until we add a TZ on the event we'll use the context's current date, more accurate
-        #        than using UTC all the time.
         if self.deadline:
             current_date = fields.Date.context_today(self.with_context({'tz': self.event_id.date_tz}))
             self.is_expired = self.deadline < current_date
@@ -179,3 +175,21 @@ class event_registration(models.Model):
                 'order': res.origin or res.sale_order_id.name})
             res.message_post(body=message)
         return res
+
+    @api.model
+    def _prepare_attendee_values(self, registration):
+        """ Override to add sale related stuff """
+        line_id = registration.get('sale_order_line_id')
+        if line_id:
+            registration.setdefault('partner_id', line_id.order_id.partner_id)
+        att_data = super(event_registration, self)._prepare_attendee_values(registration)
+        if line_id:
+            att_data.update({
+                'event_id': line_id.event_id.id,
+                'event_id': line_id.event_id.id,
+                'event_ticket_id': line_id.event_ticket_id.id,
+                'origin': line_id.order_id.name,
+                'sale_order_id': line_id.order_id.id,
+                'sale_order_line_id': line_id.id,
+            })
+        return att_data

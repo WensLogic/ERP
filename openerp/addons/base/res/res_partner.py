@@ -68,6 +68,10 @@ class format_address(object):
                 doc = etree.fromstring(arch)
                 for node in doc.xpath("//div[@class='address_format']"):
                     tree = etree.fromstring(v % {'city': _('City'), 'zip': _('ZIP'), 'state': _('State')})
+                    for child in node.xpath("//field"):
+                        if child.attrib.get('modifiers'):
+                            for field in tree.xpath("//field[@name='%s']" % child.attrib.get('name')):
+                                field.attrib['modifiers'] = child.attrib.get('modifiers')
                     node.getparent().replace(node, tree)
                 arch = etree.tostring(doc)
                 break
@@ -657,14 +661,19 @@ class res_partner(osv.Model, format_address):
             query = """SELECT id
                          FROM res_partner
                       {where} ({email} {operator} {percent}
-                           OR {display_name} {operator} {percent})
-                     ORDER BY {display_name}
-                    """.format(where=where_str, operator=operator,
+                           OR {display_name} {operator} {percent}
+                           OR {reference} {operator} {percent})
+                           -- don't panic, trust postgres bitmap
+                     ORDER BY {display_name} {operator} {percent} desc,
+                              {display_name}
+                    """.format(where=where_str,
+                               operator=operator,
                                email=unaccent('email'),
                                display_name=unaccent('display_name'),
+                               reference=unaccent('ref'),
                                percent=unaccent('%s'))
 
-            where_clause_params += [search_name, search_name]
+            where_clause_params += [search_name]*4
             if limit:
                 query += ' limit %s'
                 where_clause_params.append(limit)

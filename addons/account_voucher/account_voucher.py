@@ -287,12 +287,6 @@ class account_voucher(osv.osv):
     _description = 'Accounting Voucher'
     _inherit = ['mail.thread']
     _order = "date desc, id desc"
-#    _rec_name = 'number'
-    _track = {
-        'state': {
-            'account_voucher.mt_voucher_state_change': lambda self, cr, uid, obj, ctx=None: True,
-        },
-    }
 
     _columns = {
         'type':fields.selection([
@@ -1057,7 +1051,7 @@ class account_voucher(osv.osv):
             if not voucher.journal_id.sequence_id.active:
                 raise UserError(_('Please activate the sequence of selected journal !'))
             c = dict(context)
-            c.update({'fiscalyear_id': voucher.period_id.fiscalyear_id.id})
+            c.update({'ir_sequence_date': voucher.period_id.date_start})
             name = seq_obj.next_by_id(cr, uid, voucher.journal_id.sequence_id.id, context=c)
         else:
             raise UserError(_('Please define a sequence on the journal.'))
@@ -1413,6 +1407,12 @@ class account_voucher(osv.osv):
                 if len(rec_ids) >= 2:
                     reconcile = move_line_pool.reconcile_partial(cr, uid, rec_ids, writeoff_acc_id=voucher.writeoff_acc_id.id, writeoff_period_id=voucher.period_id.id, writeoff_journal_id=voucher.journal_id.id)
         return True
+
+    def _track_subtype(self, cr, uid, ids, init_values, context=None):
+        if 'state' in init_values:
+            return 'account_voucher.mt_voucher_state_change'
+        return super(account_voucher, self)._track_subtype(cr, uid, ids, init_values, context=context)
+
 
 class account_voucher_line(osv.osv):
     _name = 'account.voucher.line'

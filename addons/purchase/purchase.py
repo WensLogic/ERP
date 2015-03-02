@@ -197,13 +197,7 @@ class purchase_order(osv.osv):
         ('done', 'Done'),
         ('cancel', 'Cancelled')
     ]
-    _track = {
-        'state': {
-            'purchase.mt_rfq_confirmed': lambda self, cr, uid, obj, ctx=None: obj.state == 'confirmed',
-            'purchase.mt_rfq_approved': lambda self, cr, uid, obj, ctx=None: obj.state == 'approved',
-            'purchase.mt_rfq_done': lambda self, cr, uid, obj, ctx=None: obj.state == 'done',
-        },
-    }
+
     _columns = {
         'name': fields.char('Order Reference', required=True, select=True, copy=False,
                             help="Unique number of the purchase order, "
@@ -343,6 +337,16 @@ class purchase_order(osv.osv):
         self.signal_workflow(cr, uid, unlink_ids, 'purchase_cancel')
 
         return super(purchase_order, self).unlink(cr, uid, unlink_ids, context=context)
+
+    def _track_subtype(self, cr, uid, ids, init_values, context=None):
+        record = self.browse(cr, uid, ids[0], context=context)
+        if 'state' in init_values and record.state == 'approved':
+            return 'purchase.mt_rfq_approved'
+        elif 'state' in init_values and record.state == 'confirmed':
+            return 'purchase.mt_rfq_confirmed'
+        elif 'state' in init_values and record.state == 'done':
+            return 'purchase.mt_rfq_done'
+        return super(purchase_order, self)._track_subtype(cr, uid, ids, init_values, context=context)
 
     def set_order_line_status(self, cr, uid, ids, status, context=None):
         line = self.pool.get('purchase.order.line')
@@ -1297,6 +1301,11 @@ class procurement_order(osv.osv):
 
     def _get_product_supplier(self, cr, uid, procurement, context=None):
         ''' returns the main supplier of the procurement's product given as argument'''
+        supplierinfo = self.pool['product.supplierinfo']
+        company_supplier = supplierinfo.search(cr, uid,
+            [('product_tmpl_id', '=', procurement.product_id.product_tmpl_id.id), ('company_id', '=', procurement.company_id.id)], limit=1, context=context)
+        if company_supplier:
+            return supplierinfo.browse(cr, uid, company_supplier[0], context=context).name
         return procurement.product_id.seller_id
 
     def _get_po_line_values_from_procs(self, cr, uid, procurements, partner, schedule_date, context=None):
@@ -1564,6 +1573,13 @@ class product_product(osv.Model):
             product_id: Purchase.search_count(cr,uid, [('order_line.product_id', '=', product_id)], context=context) 
             for product_id in ids
         }
+
+    def action_view_purchases(self, cr, uid, ids, context=None):
+        if isinstance(ids, (int, long)):
+            ids = [ids]
+        result = self.pool['product.template']._get_act_window_dict(cr, uid, 'purchase.action_purchase_line_product_tree', context=context)
+        result['domain'] = "[('product_id','in',[" + ','.join(map(str, ids)) + "])]"
+        return result
 
     _columns = {
         'purchase_count': fields.function(_purchase_count, string='# Purchases', type='integer'),

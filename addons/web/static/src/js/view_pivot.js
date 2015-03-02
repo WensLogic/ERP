@@ -71,7 +71,7 @@ instance.web.PivotView = instance.web.View.extend({
                     self.sidebar.appendTo(self.$sidebar);
                     self.sidebar.add_items('other', [{
                         label: _t("Download xls"),
-                        callback: self.dowload_table.bind(self)
+                        callback: self.download_table.bind(self)
                     }]);
                 }
             });
@@ -87,7 +87,7 @@ instance.web.PivotView = instance.web.View.extend({
             self.$buttons.find('li[data-field="' + measure + '"]').addClass('selected');
         });
 
-        var another_ctx = {fields: _.pairs(this.groupable_fields)};
+        var another_ctx = {fields: _.chain(this.groupable_fields).pairs().sortBy(function(f){return f[1].string;}).value()};
         this.$field_selection = this.$('.o-field-selection');
         this.$field_selection.html(QWeb.render('PivotView.FieldSelection', another_ctx));
         openerp.web.bus.on('click', self, function () {
@@ -199,7 +199,7 @@ instance.web.PivotView = instance.web.View.extend({
             return this.toggle_measure(field);
         }
         if ($target.hasClass('oe-pivot-download')) {
-            return this.dowload_table();
+            return this.download_table();
         }
     },
     on_open_header_click: function (event) {
@@ -731,7 +731,7 @@ instance.web.PivotView = instance.web.View.extend({
             this.load_data().then(this.display_table.bind(this));
         }
     },
-    dowload_table: function () {
+    download_table: function () {
         openerp.web.blockUI();
         var nbr_measures = this.active_measures.length,
             headers = this.compute_headers(),
@@ -754,7 +754,7 @@ instance.web.PivotView = instance.web.View.extend({
             }
         }
         var table = {
-            headers: nbr_measures > 1 ? _.initial(headers) : headers,
+            headers: _.initial(headers),
             measure_row: measure_row,
             rows: rows,
             nbr_measures: nbr_measures,

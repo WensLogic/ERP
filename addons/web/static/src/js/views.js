@@ -119,18 +119,19 @@ instance.web.ActionManager = instance.web.Widget.extend({
         if (this.widgets.length > 1) {
             widget = this.widgets[this.widgets.length - 2];
             var index = widget.view_stack && widget.view_stack.length - 1;
-            this.select_widget(widget, index);
+            return this.select_widget(widget, index);
         }
+        return $.Deferred().reject();
     },
     select_widget: function(widget, index) {
         var self = this;
         if (this.webclient.has_uncommitted_changes()) {
-            return false;
+            return $.Deferred().reject();
         }
         var widget_index = this.widgets.indexOf(widget),
             def = $.when(widget.select_view && widget.select_view(index));
 
-        def.done(function () {
+        return def.done(function () {
             if (widget.__on_reverse_breadcrumb) {
                 widget.__on_reverse_breadcrumb();
             }
@@ -445,7 +446,7 @@ instance.web.ActionManager = instance.web.Widget.extend({
 
         if (!(ClientWidget.prototype instanceof instance.web.Widget)) {
             var next;
-            if ((next = new ClientWidget(this, action))) {
+            if ((next = ClientWidget(this, action))) {
                 return this.do_action(next, options);
             }
             return $.when();
@@ -840,6 +841,9 @@ instance.web.ViewManager =  instance.web.Widget.extend({
             if (_.isString(groupby)) {
                 groupby = [groupby];
             }
+            if (!controller.grouped && !_.isEmpty(groupby)){
+                self.dataset.set_sort([]);
+            }
             $.when(controller.do_search(results.domain, results.context, groupby || [])).then(function() {
                 self.active_search.resolve();
             });
@@ -1124,10 +1128,11 @@ instance.web.Sidebar = instance.web.Widget.extend({
                 new instance.web.Dialog(this, { title: _t("Warning"), size: 'medium',}, $("<div />").text(_t("You must choose at least one record."))).open();
                 return false;
             }
+            var dataset = self.getParent().dataset;
             var active_ids_context = {
                 active_id: ids[0],
                 active_ids: ids,
-                active_model: self.getParent().dataset.model,
+                active_model: dataset.model,
             };
 
             $.when(domain).done(function (domain) {
@@ -1140,7 +1145,8 @@ instance.web.Sidebar = instance.web.Widget.extend({
 
                 self.rpc("/web/action/load", {
                     action_id: item.action.id,
-                    context: c
+                    context: new instance.web.CompoundContext(
+                    dataset.get_context(), active_ids_context).eval()
                 }).done(function(result) {
                     result.context = new instance.web.CompoundContext(
                         result.context || {}, active_ids_context)
