@@ -230,7 +230,7 @@ class project_issue(osv.Model):
                                               " * Normal is the default situation\n"
                                               " * Blocked indicates something is preventing the progress of this issue\n"
                                               " * Ready for next stage indicates the issue is ready to be pulled to the next stage",
-                                         required=False),
+                                         required=True),
         'email_from': fields.char('Email', size=128, help="These people will receive email.", select=1),
         'email_cc': fields.char('Watchers Emails', size=256, help="These email addresses will be added to the CC field of all inbound and outbound emails for this record before being sent. Separate multiple email addresses with a comma"),
         'date_open': fields.datetime('Assigned', readonly=True, select=True),
@@ -423,11 +423,11 @@ class project_issue(osv.Model):
             return 'project_issue.mt_issue_stage'
         return super(project_issue, self)._track_subtype(cr, uid, ids, init_values, context=context)
 
-    def message_get_reply_to(self, cr, uid, ids, context=None):
+    def message_get_reply_to(self, cr, uid, ids, default=None, context=None):
         """ Override to get the reply_to of the parent project. """
         issues = self.browse(cr, SUPERUSER_ID, ids, context=context)
         project_ids = set([issue.project_id.id for issue in issues if issue.project_id])
-        aliases = self.pool['project.project'].message_get_reply_to(cr, uid, list(project_ids), context=context)
+        aliases = self.pool['project.project'].message_get_reply_to(cr, uid, list(project_ids), default=default, context=context)
         return dict((issue.id, aliases.get(issue.project_id and issue.project_id.id or 0, False)) for issue in issues)
 
     def message_get_suggested_recipients(self, cr, uid, ids, context=None):

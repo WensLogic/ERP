@@ -17,8 +17,8 @@ class Blog(osv.Model):
     _inherit = ['mail.thread', 'website.seo.metadata']
     _order = 'name'
     _columns = {
-        'name': fields.char('Blog Name', required=True),
-        'subtitle': fields.char('Blog Subtitle'),
+        'name': fields.char('Blog Name', required=True, translate=True),
+        'subtitle': fields.char('Blog Subtitle', translate=True),
     }
 
     def all_tags(self, cr, uid, ids, min_limit=1, context=None):
@@ -235,6 +235,8 @@ class BlogPost(osv.Model):
         return post_id
 
     def write(self, cr, uid, ids, vals, context=None):
+        if isinstance(ids, (int, long)):
+            ids = [ids]
         if 'content' in vals:
             vals['content'] = self._postproces_content(cr, uid, ids[0], vals['content'], context=context)
         result = super(BlogPost, self).write(cr, uid, ids, vals, context)

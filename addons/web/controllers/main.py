@@ -311,12 +311,12 @@ def set_cookie_and_redirect(redirect_url):
 
 def login_redirect():
     url = '/web/login?'
-    if request.debug:
-        url += 'debug&'
+    # built the redirect url, keeping all the query parameters of the url
+    redirect_url = '%s?%s' % (request.httprequest.base_url, werkzeug.urls.url_encode(request.params))
     return """<html><head><script>
-        window.location = '%sredirect=' + encodeURIComponent(window.location);
+        window.location = '%sredirect=' + encodeURIComponent("%s");
     </script></head></html>
-    """ % (url,)
+    """ % (url, redirect_url)
 
 def load_actions_from_ir_values(key, key2, models, meta):
     Values = request.session.model('ir.values')
@@ -534,14 +534,15 @@ class Home(http.Controller):
     @http.route([
         '/web/css/<xmlid>',
         '/web/css/<xmlid>/<version>',
+        '/web/css.<int:page>/<xmlid>/<version>',
     ], type='http', auth='public')
-    def css_bundle(self, xmlid, version=None, **kw):
+    def css_bundle(self, xmlid, version=None, page=None, **kw):
         try:
             bundle = AssetsBundle(xmlid)
         except QWebTemplateNotFound:
             return request.not_found()
 
-        response = request.make_response(bundle.css(), [('Content-Type', 'text/css')])
+        response = request.make_response(bundle.css(page), [('Content-Type', 'text/css')])
         return make_conditional(response, bundle.last_modified, max_age=BUNDLE_MAXAGE)
 
 class WebClient(http.Controller):

@@ -138,20 +138,21 @@ class product_product(osv.osv):
         domain_move_in += self._get_domain_dates(cr, uid, ids, context=context) + [('state', 'not in', ('done', 'cancel', 'draft'))] + domain_products
         domain_move_out += self._get_domain_dates(cr, uid, ids, context=context) + [('state', 'not in', ('done', 'cancel', 'draft'))] + domain_products
         domain_quant += domain_products
-        if context.get('lot_id') or context.get('owner_id') or context.get('package_id'):
-            if context.get('lot_id'):
-                domain_quant.append(('lot_id', '=', context['lot_id']))
-            if context.get('owner_id'):
-                domain_quant.append(('owner_id', '=', context['owner_id']))
-            if context.get('package_id'):
-                domain_quant.append(('package_id', '=', context['package_id']))
-            moves_in = []
-            moves_out = []
-        else:
-            domain_move_in += domain_move_in_loc
-            domain_move_out += domain_move_out_loc
-            moves_in = self.pool.get('stock.move').read_group(cr, uid, domain_move_in, ['product_id', 'product_qty'], ['product_id'], context=context)
-            moves_out = self.pool.get('stock.move').read_group(cr, uid, domain_move_out, ['product_id', 'product_qty'], ['product_id'], context=context)
+
+        if context.get('lot_id'):
+            domain_quant.append(('lot_id', '=', context['lot_id']))
+        if context.get('owner_id'):
+            domain_quant.append(('owner_id', '=', context['owner_id']))
+            owner_domain = ('restrict_partner_id', '=', context['owner_id'])
+            domain_move_in.append(owner_domain)
+            domain_move_out.append(owner_domain)
+        if context.get('package_id'):
+            domain_quant.append(('package_id', '=', context['package_id']))
+
+        domain_move_in += domain_move_in_loc
+        domain_move_out += domain_move_out_loc
+        moves_in = self.pool.get('stock.move').read_group(cr, uid, domain_move_in, ['product_id', 'product_qty'], ['product_id'], context=context)
+        moves_out = self.pool.get('stock.move').read_group(cr, uid, domain_move_out, ['product_id', 'product_qty'], ['product_id'], context=context)
 
         domain_quant += domain_quant_loc
         quants = self.pool.get('stock.quant').read_group(cr, uid, domain_quant, ['product_id', 'qty'], ['product_id'], context=context)
@@ -327,6 +328,18 @@ class product_product(osv.osv):
         templ_ids = list(set([x.product_tmpl_id.id for x in self.browse(cr, uid, ids, context=context)]))
         return template_obj.action_view_routes(cr, uid, templ_ids, context=context)
 
+    def onchange_track_all(self, cr, uid, ids, track_all, context=None):
+        if not track_all:
+            return {}
+        unassigned_quants = self.pool['stock.quant'].search_count(cr, uid, [('product_id','in', ids), ('lot_id','=', False), ('location_id.usage','=', 'internal')], context=context)
+        if unassigned_quants:
+            return {'warning' : {
+                    'title': _('Warning!'),
+                    'message' : _("Lots are not defined for all the existing inventory of this product. You should assign serial numbers (e.g. by creating an inventory) first.")
+            }}
+        return {}
+
+
 class product_template(osv.osv):
     _name = 'product.template'
     _inherit = 'product.template'
@@ -435,6 +448,12 @@ class product_template(osv.osv):
         result['domain'] = "[('id','in',[" + ','.join(map(str, route_ids)) + "])]"
         return result
 
+    def onchange_track_all(self, cr, uid, ids, track_all, context=None):
+        if not track_all:
+            return {}
+        product_product = self.pool['product.product']
+        variant_ids = product_product.search(cr, uid, [('product_tmpl_id', 'in', ids)], context=context)
+        return product_product.onchange_track_all(cr, uid, variant_ids, track_all, context=context)
 
     def _get_products(self, cr, uid, ids, context=None):
         products = []

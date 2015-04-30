@@ -427,11 +427,11 @@ class hr_applicant(osv.Model):
             return 'hr_recruitment.mt_applicant_stage_changed'
         return super(hr_applicant, self)._track_subtype(cr, uid, ids, init_values, context=context)
 
-    def message_get_reply_to(self, cr, uid, ids, context=None):
+    def message_get_reply_to(self, cr, uid, ids, default=None, context=None):
         """ Override to get the reply_to of the parent project. """
         applicants = self.browse(cr, SUPERUSER_ID, ids, context=context)
         job_ids = set([applicant.job_id.id for applicant in applicants if applicant.job_id])
-        aliases = self.pool['project.project'].message_get_reply_to(cr, uid, list(job_ids), context=context)
+        aliases = self.pool['project.project'].message_get_reply_to(cr, uid, list(job_ids), default=default, context=context)
         return dict((applicant.id, aliases.get(applicant.job_id and applicant.job_id.id or 0, False)) for applicant in applicants)
 
     def message_get_suggested_recipients(self, cr, uid, ids, context=None):
@@ -528,24 +528,29 @@ class hr_applicant(osv.Model):
                         'post': True,
                         'notify': True,
                     }, context=compose_ctx)
+                values = self.pool['mail.compose.message'].onchange_template_id(
+                    cr, uid, [compose_id], stage.template_id.id, 'mass_mail', self._name, False, context=compose_ctx)['value']
+                if values.get('attachment_ids'):
+                    values['attachment_ids'] = [(6, 0, values['attachment_ids'])]
                 self.pool['mail.compose.message'].write(
                     cr, uid, [compose_id],
-                    self.pool['mail.compose.message'].onchange_template_id(
-                        cr, uid, [compose_id],
-                        stage.template_id.id, 'mass_mail', self._name, False,
-                        context=compose_ctx)['value'],
+                    values,
                     context=compose_ctx)
                 self.pool['mail.compose.message'].send_mail(cr, uid, [compose_id], context=compose_ctx)
         return res
 
     def _broadcast_welcome(self, cr, uid, employee_id, context=None):
         """ Broadcast the welcome message to all users in the employee company. """
-        employee = self.pool.get('hr.employee').browse(cr, uid, employee_id, context=context)
-        mail_group_action, mail_group_id = self.pool.get('ir.model.data').get_object_reference(cr, uid, 'mail', 'group_all_employees')
-        self.pool.get('mail.group').message_post(
-            cr, uid, [mail_group_id],
-            body=_('Welcome to %s! Please help him/her take the first steps with Odoo!') % (employee.name),
-            subtype='mail.mt_comment', context=context)
+        IrModelData = self.pool['ir.model.data']
+        group_all_employees = IrModelData.xmlid_to_object(cr, uid, 'mail.group_all_employees', context=context)
+        template_new_employee = IrModelData.xmlid_to_object(cr, uid, 'hr_recruitment.hr_welcome_new_employee', context=context)
+        if template_new_employee:
+            MailTemplate = self.pool['mail.template']
+            body_html = MailTemplate.render_template(cr, uid, template_new_employee.body_html, 'hr.employee', employee_id, context=context)
+            subject = MailTemplate.render_template(cr, uid, template_new_employee.subject, 'hr.employee', employee_id, context=context)
+            self.pool['mail.group'].message_post(cr, uid, [group_all_employees.id],
+                body=body_html, subject=subject,
+                subtype='mail.mt_comment', context=context)
         return True
 
     def create_employee_from_applicant(self, cr, uid, ids, context=None):

@@ -40,6 +40,8 @@ var Session = core.Class.extend(mixins.EventDispatcherMixin, {
         this.name = "instance0";
         // TODO: session store in cookie should be optional
         this.qweb_mutex = new utils.Mutex();
+        this.currencies = {};
+        this._groups_def = {};
     },
     setup: function(origin, options) {
         // must be able to customize server
@@ -128,6 +130,18 @@ var Session = core.Class.extend(mixins.EventDispatcherMixin, {
         $.bbq.removeState();
         return this.rpc("/web/session/destroy", {});
     },
+    user_has_group: function(group) {
+        if (!this.uid) {
+            return $.when().resolve(false);
+        }
+        var def = this._groups_def[group];
+        if (!def) {
+            var Model = window.openerp.web.Model;
+            var Users = new Model('res.users');
+            def = this._groups_def[group] = Users.call('has_group', [group]);
+        }
+        return def;
+    },
     get_cookie: function (name) {
         if (!this.name) { return null; }
         var nameEQ = this.name + '|' + name + '=';
@@ -169,7 +183,7 @@ var Session = core.Class.extend(mixins.EventDispatcherMixin, {
             var to_load = _.difference(result, self.module_list).join(',');
             self.module_list = all_modules;
 
-            var loaded = self.load_translations();
+            var loaded = $.when(self.load_currencies(), self.load_translations());
             var locale = "/web/webclient/locale/" + self.user_context.lang || 'en_US';
             var file_list = [ locale ];
             if(to_load.length) {
@@ -189,6 +203,16 @@ var Session = core.Class.extend(mixins.EventDispatcherMixin, {
                 self.trigger('module_loaded');
             });
         });
+    },
+    load_currencies: function() {
+        this.currencies = {};
+        var self = this;
+        return new openerp.web.Model("res.currency").query(["symbol", "position", "decimal_places"]).all()
+                .then(function(value) {
+                    _.each(value, function(k){
+                        self.currencies[k.id] = {'symbol': k.symbol, 'position': k.position, 'digits': [69,k.decimal_places]};
+                    });
+                });
     },
     load_translations: function() {
         return _t.database.load_translations(this, this.module_list, this.user_context.lang);
@@ -239,6 +263,9 @@ var Session = core.Class.extend(mixins.EventDispatcherMixin, {
             }
             this.module_loaded[mod] = true;
         }
+    },
+    get_currency: function(currency_id) {
+        return this.currencies[currency_id];
     },
     get_file: function (options) {
         if (this.override_session){
