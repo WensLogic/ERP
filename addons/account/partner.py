@@ -242,7 +242,7 @@ class res_partner(osv.osv):
         result = {}
         account_invoice_report = self.pool.get('account.invoice.report')
         for partner in self.browse(cr, uid, ids, context=context):
-            domain = [('partner_id', 'child_of', partner.id)]
+            domain = [('partner_id', 'child_of', partner.id), ('state', 'not in', ['draft', 'cancel'])]
             invoice_ids = account_invoice_report.search(cr, uid, domain, context=context)
             invoices = account_invoice_report.browse(cr, uid, invoice_ids, context=context)
             result[partner.id] = sum(inv.user_currency_price_total for inv in invoices)
@@ -251,13 +251,14 @@ class res_partner(osv.osv):
     def _journal_item_count(self, cr, uid, ids, field_name, arg, context=None):
         MoveLine = self.pool('account.move.line')
         AnalyticAccount = self.pool('account.analytic.account')
-        return {
-            partner_id: {
-                'journal_item_count': MoveLine.search_count(cr, uid, [('partner_id', '=', partner_id)], context=context),
-                'contracts_count': AnalyticAccount.search_count(cr,uid, [('partner_id', '=', partner_id)], context=context)
-            }
-            for partner_id in ids
-        }
+        results = {}
+        for partner_id in ids:
+            results[partner_id] = {}
+            if 'contracts_count' in field_name:
+                results[partner_id]['contracts_count'] = AnalyticAccount.search_count(cr, uid, [('partner_id', '=', partner_id)], context=context)
+            if 'journal_item_count' in field_name:
+                results[partner_id]['journal_item_count'] = MoveLine.search_count(cr, uid, [('partner_id', '=', partner_id)], context=context)
+        return results
 
     def has_something_to_reconcile(self, cr, uid, partner_id, context=None):
         '''

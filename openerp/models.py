@@ -1093,6 +1093,13 @@ class BaseModel(object):
             ids = False
         return {'ids': ids, 'messages': messages}
 
+    def _add_fake_fields(self, cr, uid, fields, context=None):
+        from openerp.fields import Char, Integer
+        fields[None] = Char('rec_name')
+        fields['id'] = Char('External ID')
+        fields['.id'] = Integer('Database ID')
+        return fields
+
     def _extract_records(self, cr, uid, fields_, data,
                          context=None, log=lambda a: None):
         """ Generates record dicts from the data sequence.
@@ -1108,13 +1115,9 @@ class BaseModel(object):
         * "id" is the External ID for the record
         * ".id" is the Database ID for the record
         """
-        from openerp.fields import Char, Integer
         fields = dict(self._fields)
         # Fake fields to avoid special cases in extractor
-        fields[None] = Char('rec_name')
-        fields['id'] = Char('External ID')
-        fields['.id'] = Integer('Database ID')
-
+        fields = self._add_fake_fields(cr, uid, fields, context=context)
         # m2o fields can't be on multiple lines so exclude them from the
         # is_relational field rows filter, but special-case it later on to
         # be handled with relational fields (as it can have subfields)
@@ -1814,7 +1817,7 @@ class BaseModel(object):
         ``tools.ormcache`` or ``tools.ormcache_multi``.
         """
         try:
-            self.pool.cache.clear_prefix((self.pool.db_name, self._name))
+            self.pool.cache.clear_prefix((self._name,))
             self.pool._any_cache_cleared = True
         except AttributeError:
             pass
@@ -2422,8 +2425,12 @@ class BaseModel(object):
         """
         self._foreign_keys = set()
         raise_on_invalid_object_name(self._name)
-        if context is None:
-            context = {}
+
+        # This prevents anything called by this method (in particular default
+        # values) from prefetching a field for which the corresponding column
+        # has not been added in database yet!
+        context = dict(context or {}, prefetch_fields=False)
+
         store_compute = False
         stored_fields = []              # new-style stored fields with compute
         todo_end = []
